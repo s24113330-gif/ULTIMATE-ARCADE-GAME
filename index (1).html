@@ -1,0 +1,1068 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Eagle Flip - Ultimate Arcade</title>
+    <style>
+        /* --- 1. CORE VARIABLES & RESET --- */
+        :root {
+            --bg-deep: #0b1121; /* Darker, richer background */
+            --bg-panel: rgba(30, 41, 59, 0.7); /* Glassy panel */
+            --accent-primary: #8b5cf6; /* Purple */
+            --accent-glow: #a78bfa;
+            --accent-secondary: #06b6d4; /* Cyan */
+            --accent-gold: #fbbf24;
+            --accent-danger: #f43f5e;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --success: #22c55e;
+            --font-main: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            
+            /* Enhanced Easings */
+            --ease-elastic: cubic-bezier(0.34, 1.56, 0.64, 1);
+            --ease-physics: cubic-bezier(0.15, 0.85, 0.35, 1.15); 
+            --ease-smooth: cubic-bezier(0.4, 0.0, 0.2, 1);
+        }
+
+        * { box-sizing: border-box; user-select: none; -webkit-tap-highlight-color: transparent; outline: none; }
+        
+        body {
+            background-color: var(--bg-deep);
+            background-image: radial-gradient(circle at 50% 0%, #1e1b4b 0%, var(--bg-deep) 60%);
+            color: var(--text-main);
+            font-family: var(--font-main);
+            margin: 0;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            height: 100vh;
+        }
+
+        /* --- 2. LAYOUT & GLASSMORPHISM --- */
+        .app-container {
+            width: 100%;
+            max-width: 480px;
+            height: 100%;
+            position: relative;
+            background: transparent;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 0 50px rgba(0,0,0,0.5);
+        }
+
+        .page {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            display: flex;
+            flex-direction: column;
+            transition: opacity 0.5s var(--ease-smooth), transform 0.5s var(--ease-smooth), filter 0.5s;
+            opacity: 0;
+            transform: scale(0.95);
+            pointer-events: none;
+            z-index: 10;
+            padding-bottom: 85px; /* More space for nav */
+            overflow-y: auto;
+            scrollbar-width: none; /* Hide scrollbar Firefox */
+        }
+        .page::-webkit-scrollbar { display: none; } /* Hide scrollbar Chrome */
+
+        .page.active {
+            opacity: 1;
+            transform: scale(1);
+            filter: blur(0);
+            pointer-events: all;
+            z-index: 20;
+        }
+
+        /* --- 3. SPLASH SCREEN --- */
+        #page-splash {
+            z-index: 100;
+            justify-content: center;
+            align-items: center;
+            background: radial-gradient(circle at center, #4c1d95 0%, #0f172a 100%);
+        }
+
+        .splash-logo {
+            font-size: 5rem;
+            animation: float 4s ease-in-out infinite;
+            filter: drop-shadow(0 0 30px var(--accent-primary));
+            margin-bottom: 20px;
+        }
+
+        .splash-title {
+            font-size: 2.5rem;
+            font-weight: 900;
+            text-align: center;
+            line-height: 1.1;
+            background: linear-gradient(to right, #fff, var(--accent-secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            opacity: 0;
+            animation: fadeUp 1s forwards 0.3s;
+        }
+
+        .start-btn {
+            margin-top: 50px;
+            padding: 18px 50px;
+            background: linear-gradient(135deg, var(--accent-primary), #6d28d9);
+            color: white;
+            border: none;
+            border-radius: 40px;
+            font-weight: 800;
+            font-size: 1.1rem;
+            letter-spacing: 1px;
+            box-shadow: 0 10px 25px rgba(139, 92, 246, 0.5);
+            cursor: pointer;
+            opacity: 0;
+            animation: fadeUp 1s forwards 0.8s;
+            transition: transform 0.2s, box-shadow 0.2s;
+            position: relative;
+            overflow: hidden;
+        }
+        .start-btn::after {
+            content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(rgba(255,255,255,0.2), transparent);
+        }
+        .start-btn:active { transform: scale(0.95); box-shadow: 0 5px 15px rgba(139, 92, 246, 0.3); }
+
+        /* --- 4. HEADER & HUD --- */
+        .header {
+            padding: 20px 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 30;
+        }
+
+        .brand-pill {
+            font-weight: 900;
+            color: var(--accent-secondary);
+            font-size: 1.2rem;
+            text-shadow: 0 0 10px rgba(6, 182, 212, 0.5);
+        }
+
+        .score-pill {
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(10px);
+            padding: 8px 18px;
+            border-radius: 30px;
+            border: 1px solid rgba(255,255,255,0.1);
+            display: flex;
+            gap: 10px;
+            font-weight: 700;
+            color: var(--accent-gold);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            transition: transform 0.2s;
+        }
+        .score-pill.pulse { transform: scale(1.1); background: rgba(251, 191, 36, 0.2); }
+
+        /* --- 5. 3D STAGE --- */
+        .game-stage {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            perspective: 1200px; /* Better depth */
+            z-index: 15;
+        }
+        
+        /* Ambient Glow behind objects */
+        .stage-glow {
+            position: absolute;
+            width: 200px; height: 200px;
+            background: radial-gradient(circle, rgba(139, 92, 246, 0.2) 0%, transparent 70%);
+            border-radius: 50%;
+            z-index: -1;
+            animation: breathe 4s ease-in-out infinite;
+        }
+
+        /* --- OBJECT: COIN --- */
+        .coin-wrapper { width: 180px; height: 180px; position: relative; display: none; }
+        .coin-wrapper.active { display: block; animation: float 6s ease-in-out infinite; }
+        
+        .coin {
+            width: 100%; height: 100%;
+            position: relative;
+            transform-style: preserve-3d;
+        }
+        .coin-face {
+            position: absolute;
+            width: 100%; height: 100%;
+            backface-visibility: hidden; /* Hides back when flipped */
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 5rem;
+            /* Improved Metallic look */
+            box-shadow: inset 0 0 30px rgba(0,0,0,0.6), 0 0 10px rgba(255,255,255,0.3);
+            border: 8px solid #d97706;
+            background: radial-gradient(135deg, #fbbf24, #b45309, #78350f);
+        }
+        .face-front::after { content: ''; position: absolute; top:0; left:0; right:0; bottom:0; border-radius:50%; border: 2px dashed rgba(255,255,255,0.3); margin: 5px; }
+        .face-back { transform: rotateY(180deg); border-color: #94a3b8; background: radial-gradient(135deg, #e2e8f0, #64748b, #334155); }
+
+        /* --- OBJECT: DICE --- */
+        .dice-wrapper { width: 120px; height: 120px; position: relative; display: none; }
+        .dice-wrapper.active { display: block; animation: float 5s ease-in-out infinite reverse; }
+
+        .dice {
+            width: 100%; height: 100%;
+            position: absolute;
+            transform-style: preserve-3d;
+        }
+        .dice-face {
+            position: absolute;
+            width: 120px; height: 120px;
+            background: linear-gradient(135deg, #ffffff, #f1f5f9);
+            border: 1px solid #cbd5e1;
+            border-radius: 20px;
+            display: flex; justify-content: center; align-items: center;
+            font-size: 2.5rem; font-weight: 800; color: #1e293b;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.05);
+        }
+        .df-1 { transform: translateZ(60px); }
+        .df-2 { transform: rotateY(180deg) translateZ(60px); }
+        .df-3 { transform: rotateY(90deg) translateZ(60px); }
+        .df-4 { transform: rotateY(-90deg) translateZ(60px); }
+        .df-5 { transform: rotateX(90deg) translateZ(60px); }
+        .df-6 { transform: rotateX(-90deg) translateZ(60px); }
+        
+        /* --- OBJECT: CARD (New) --- */
+        .card-wrapper { width: 140px; height: 200px; position: relative; display: none; }
+        .card-wrapper.active { display: block; animation: float 7s ease-in-out infinite; }
+        
+        .card {
+            width: 100%; height: 100%;
+            position: relative;
+            transform-style: preserve-3d;
+        }
+        .card-face {
+            position: absolute; width: 100%; height: 100%;
+            backface-visibility: hidden;
+            border-radius: 15px;
+            display: flex; justify-content: center; align-items: center;
+            font-size: 4rem;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            background: white; border: 4px solid white;
+        }
+        .card-back { 
+            background: repeating-linear-gradient(45deg, #ef4444, #ef4444 10px, #dc2626 10px, #dc2626 20px);
+            border: 4px solid white;
+            display: flex; justify-content: center; align-items: center;
+        }
+        .card-back::before { content: '🦅'; font-size: 3rem; background: white; border-radius: 50%; width: 60px; height: 60px; display: flex; justify-content:center; align-items:center; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
+        .card-front { transform: rotateY(180deg); flex-direction: column; color: #1e293b; }
+        
+        /* --- OBJECT: RPS (New) --- */
+        .rps-wrapper { width: 150px; height: 150px; position: relative; display: none; justify-content: center; align-items: center;}
+        .rps-wrapper.active { display: flex; animation: float 4s ease-in-out infinite; }
+        .rps-icon { font-size: 6rem; filter: drop-shadow(0 10px 20px rgba(0,0,0,0.5)); transition: transform 0.2s; }
+
+        /* --- 6. CONTROLS --- */
+        .controls-area {
+            background: var(--bg-panel);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            padding: 30px 25px 35px 25px; /* Increased bottom padding */
+            border-radius: 30px 30px 0 0;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            box-shadow: 0 -10px 40px rgba(0,0,0,0.4);
+            transform: translateY(0);
+            transition: transform 0.3s;
+        }
+
+        .prediction-text {
+            text-align: center; color: var(--text-muted); margin-bottom: 20px;
+            font-size: 0.85rem; text-transform: uppercase; letter-spacing: 2px; font-weight: 600;
+        }
+
+        .action-grid { display: flex; gap: 15px; margin-bottom: 20px; }
+        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; } /* For RPS */
+        
+        .action-btn {
+            flex: 1;
+            padding: 20px;
+            border: none;
+            border-radius: 16px;
+            background: rgba(255,255,255,0.05);
+            color: var(--text-muted);
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s var(--ease-physics);
+            display: flex; flex-direction: column; align-items: center; gap: 8px;
+            border: 1px solid transparent;
+        }
+        .action-btn:hover { background: rgba(255,255,255,0.1); transform: translateY(-2px); }
+        
+        .action-btn.selected {
+            background: rgba(139, 92, 246, 0.2);
+            color: white;
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 20px rgba(139, 92, 246, 0.3);
+            transform: translateY(-4px);
+        }
+        .action-btn.selected span:first-child { transform: scale(1.2); }
+
+        .play-btn {
+            width: 100%;
+            padding: 20px;
+            background: var(--success);
+            background: linear-gradient(to right, #22c55e, #16a34a);
+            color: #fff;
+            border: none;
+            border-radius: 16px;
+            font-weight: 900;
+            font-size: 1.2rem;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            cursor: pointer;
+            box-shadow: 0 5px 20px rgba(34, 197, 94, 0.4);
+            transition: all 0.2s;
+            position: relative; overflow: hidden;
+        }
+        .play-btn:active { transform: scale(0.98); box-shadow: 0 2px 10px rgba(34, 197, 94, 0.2); }
+        .play-btn:disabled { background: #334155; color: #64748b; cursor: not-allowed; box-shadow: none; transform: none; }
+        
+        /* Streak Badge */
+        .streak-container {
+            position: absolute; top: -20px; left: 50%; transform: translateX(-50%);
+            background: #f43f5e; color: white; padding: 5px 15px; border-radius: 20px;
+            font-size: 0.8rem; font-weight: bold; box-shadow: 0 5px 15px rgba(244, 63, 94, 0.4);
+            opacity: 0; transition: opacity 0.3s, transform 0.3s;
+        }
+        .streak-container.show { opacity: 1; transform: translateX(-50%) translateY(-5px); }
+
+        /* --- 7. BOTTOM NAV --- */
+        .bottom-nav {
+            position: absolute; bottom: 0; left: 0; width: 100%;
+            height: 80px;
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(10px);
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            border-top: 1px solid rgba(255,255,255,0.05);
+            z-index: 50;
+            padding-bottom: 10px; /* Safe area */
+        }
+
+        .nav-item {
+            display: flex; flex-direction: column; align-items: center;
+            color: #64748b;
+            font-size: 0.7rem; font-weight: 600;
+            gap: 6px;
+            cursor: pointer;
+            width: 20%;
+            transition: color 0.3s;
+        }
+        .nav-item.active { color: var(--accent-secondary); }
+        .nav-icon { font-size: 1.5rem; transition: transform 0.3s var(--ease-elastic); }
+        .nav-item.active .nav-icon { transform: translateY(-5px) scale(1.1); filter: drop-shadow(0 0 8px var(--accent-secondary)); }
+
+        /* --- 8. SELECTOR PAGE --- */
+        .selector-grid { display: grid; grid-template-columns: 1fr; gap: 15px; padding: 20px; }
+        
+        .selector-card {
+            background: rgba(255,255,255,0.03);
+            padding: 20px;
+            border-radius: 16px;
+            display: flex; align-items: center; gap: 20px;
+            cursor: pointer;
+            border: 1px solid rgba(255,255,255,0.05);
+            transition: all 0.2s;
+        }
+        .selector-card:active { transform: scale(0.98); }
+        .selector-card.active { 
+            border-color: var(--accent-secondary); 
+            background: linear-gradient(90deg, rgba(6, 182, 212, 0.1), transparent);
+        }
+        .selector-icon { font-size: 2.5rem; background: rgba(255,255,255,0.05); width: 60px; height: 60px; display: flex; justify-content:center; align-items:center; border-radius: 12px; }
+
+        /* --- 9. MODALS & FX --- */
+        .modal-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85);
+            backdrop-filter: blur(8px);
+            z-index: 200;
+            display: flex; justify-content: center; align-items: center;
+            opacity: 0; pointer-events: none;
+            transition: opacity 0.3s;
+        }
+        .modal-overlay.active { opacity: 1; pointer-events: all; }
+
+        .reward-card {
+            background: linear-gradient(145deg, #1e293b, #0f172a);
+            width: 85%;
+            padding: 40px 20px;
+            border-radius: 24px;
+            text-align: center;
+            border: 2px solid var(--accent-gold);
+            transform: scale(0.8) translateY(20px);
+            transition: transform 0.4s var(--ease-elastic);
+            box-shadow: 0 0 40px rgba(251, 191, 36, 0.2);
+        }
+        .modal-overlay.active .reward-card { transform: scale(1) translateY(0); }
+
+        .reward-icon { font-size: 5rem; margin-bottom: 15px; animation: bounce 1.5s infinite; filter: drop-shadow(0 0 15px var(--accent-gold)); }
+        
+        /* History & Rewards Styling */
+        .history-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; padding: 25px; }
+        .history-item {
+            background: rgba(255,255,255,0.05); padding: 12px 0; border-radius: 10px;
+            text-align: center; font-size: 1.3rem; transition: transform 0.2s;
+        }
+        .history-win { border: 1px solid var(--success); color: var(--success); background: rgba(34, 197, 94, 0.1); }
+        .history-loss { border: 1px solid var(--accent-danger); color: var(--accent-danger); opacity: 0.7; }
+        
+        .edu-banner {
+            position: absolute; top: 0; left: 0; width: 100%;
+            background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+            color: white; font-size: 0.7rem; text-align: center; padding: 6px;
+            z-index: 1000; font-weight: 800; text-transform: uppercase; letter-spacing: 1px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+
+        /* Particles */
+        .particle { position: absolute; pointer-events: none; border-radius: 50%; }
+
+        @keyframes float { 0%, 100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-15px) rotate(2deg); } }
+        @keyframes fadeUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-15px); } }
+        @keyframes breathe { 0%, 100% { opacity: 0.3; transform: scale(1); } 50% { opacity: 0.6; transform: scale(1.2); } }
+        @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+
+        .shake-screen { animation: shake 0.4s ease-in-out; }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+<div class="app-container" id="app">
+    <div class="edu-banner">🦅 Eagle Arcade • Play for Fun • Collect Rewards</div>
+
+    <div id="page-splash" class="page active">
+        <div class="splash-logo">🦅</div>
+        <h1 class="splash-title">EAGLE FLIP <br><span style="font-size: 1.2rem; font-weight:400; color: #a78bfa; letter-spacing: 2px;">ULTIMATE ARCADE</span></h1>
+        <button class="start-btn" onclick="navigateTo('page-home')">ENTER ARCADE</button>
+        <div style="position: absolute; bottom: 30px; color: rgba(255,255,255,0.3); font-size: 0.8rem;">V 2.0 • Enhanced Edition</div>
+    </div>
+
+    <div id="page-home" class="page">
+        <header class="header">
+            <div class="brand-pill">🦅 ARCADE</div>
+            <div class="score-pill" id="score-container">
+                <span style="color: var(--accent-gold);">pts</span> <span id="scoreDisplay">0</span>
+            </div>
+        </header>
+
+        <div class="game-stage">
+            <div class="stage-glow"></div>
+            
+            <div class="streak-container" id="streak-badge">
+                🔥 <span id="streak-val">0</span> STREAK
+            </div>
+
+            <div class="coin-wrapper active" id="obj-coin">
+                <div class="coin" id="coin">
+                    <div class="coin-face face-front">🦅</div>
+                    <div class="coin-face face-back">🐺</div>
+                </div>
+            </div>
+
+            <div class="dice-wrapper" id="obj-dice">
+                <div class="dice" id="dice">
+                    <div class="dice-face df-1">1</div>
+                    <div class="dice-face df-2">2</div>
+                    <div class="dice-face df-3">3</div>
+                    <div class="dice-face df-4">4</div>
+                    <div class="dice-face df-5">5</div>
+                    <div class="dice-face df-6">6</div>
+                </div>
+            </div>
+
+            <div class="card-wrapper" id="obj-card">
+                <div class="card" id="card">
+                    <div class="card-face card-back"></div>
+                    <div class="card-face card-front" id="card-face-val">
+                        <div style="font-size: 1.5rem; align-self: flex-start; margin-left: 10px;">A</div>
+                        <div style="color: #ef4444; font-size: 3rem;">♥</div>
+                        <div style="font-size: 1.5rem; align-self: flex-end; margin-right: 10px; transform: rotate(180deg);">A</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="rps-wrapper" id="obj-rps">
+                <div class="rps-icon" id="rps-icon">✊</div>
+            </div>
+        </div>
+
+        <div class="controls-area">
+            <div class="prediction-text" id="pred-label">Make your Prediction</div>
+            
+            <div class="action-grid" id="controls-coin">
+                <button class="action-btn" onclick="selectPrediction('head', this)">
+                    <span style="font-size: 1.8rem">🦅</span>
+                    <span>HEADS</span>
+                </button>
+                <button class="action-btn" onclick="selectPrediction('tail', this)">
+                    <span style="font-size: 1.8rem">🐺</span>
+                    <span>TAILS</span>
+                </button>
+            </div>
+
+            <div class="action-grid hidden" id="controls-dice">
+                <button class="action-btn" onclick="selectPrediction('odd', this)">
+                    <span style="font-size: 1.8rem">1•3•5</span>
+                    <span>ODD</span>
+                </button>
+                <button class="action-btn" onclick="selectPrediction('even', this)">
+                    <span style="font-size: 1.8rem">2•4•6</span>
+                    <span>EVEN</span>
+                </button>
+            </div>
+
+            <div class="action-grid hidden" id="controls-card">
+                <button class="action-btn" onclick="selectPrediction('red', this)">
+                    <span style="font-size: 1.8rem; color: #ef4444;">♥♦</span>
+                    <span>RED</span>
+                </button>
+                <button class="action-btn" onclick="selectPrediction('black', this)">
+                    <span style="font-size: 1.8rem; color: #fff;">♠♣</span>
+                    <span>BLACK</span>
+                </button>
+            </div>
+
+            <div class="action-grid grid-3 hidden" id="controls-rps">
+                <button class="action-btn" onclick="selectPrediction('rock', this)">
+                    <span style="font-size: 1.8rem">✊</span>
+                    <span>ROCK</span>
+                </button>
+                <button class="action-btn" onclick="selectPrediction('paper', this)">
+                    <span style="font-size: 1.8rem">✋</span>
+                    <span>PAPER</span>
+                </button>
+                <button class="action-btn" onclick="selectPrediction('scissors', this)">
+                    <span style="font-size: 1.8rem">✌️</span>
+                    <span>SCISSORS</span>
+                </button>
+            </div>
+
+            <button class="play-btn" id="btn-spin" onclick="playGame()" disabled>PLAY</button>
+        </div>
+    </div>
+
+    <div id="page-selector" class="page">
+        <header class="header"><h2>Game Select</h2></header>
+        <div class="selector-grid">
+            <div class="selector-card active" onclick="switchGameMode('coin', this)">
+                <div class="selector-icon">🪙</div>
+                <div>
+                    <div style="font-weight: bold; font-size: 1.1rem;">Classic Coin</div>
+                    <div style="font-size: 0.8rem; color: var(--text-muted);">50/50 Probability</div>
+                </div>
+            </div>
+
+            <div class="selector-card" onclick="switchGameMode('dice', this)">
+                <div class="selector-icon">🎲</div>
+                <div>
+                    <div style="font-weight: bold; font-size: 1.1rem;">Lucky Dice</div>
+                    <div style="font-size: 0.8rem; color: var(--text-muted);">Odd vs Even Logic</div>
+                </div>
+            </div>
+
+            <div class="selector-card" onclick="switchGameMode('card', this)">
+                <div class="selector-icon">🃏</div>
+                <div>
+                    <div style="font-weight: bold; font-size: 1.1rem;">Mystic Card</div>
+                    <div style="font-size: 0.8rem; color: var(--text-muted);">Red or Black Prediction</div>
+                </div>
+            </div>
+
+            <div class="selector-card" onclick="switchGameMode('rps', this)">
+                <div class="selector-icon">✂️</div>
+                <div>
+                    <div style="font-weight: bold; font-size: 1.1rem;">R.P.S Arena</div>
+                    <div style="font-size: 0.8rem; color: var(--text-muted);">Beat the AI</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="page-history" class="page">
+        <header class="header"><h2>Session Log</h2></header>
+        <div class="history-grid" id="history-container">
+            </div>
+        <div style="padding: 20px; text-align:center; color: #666; font-size: 0.8rem;">
+            *History clears on browser refresh
+        </div>
+    </div>
+
+    <div id="page-rewards" class="page">
+        <header class="header"><h2>Trophy Room</h2></header>
+        <div id="rewards-grid" style="padding: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+        </div>
+    </div>
+
+    <div id="page-about" class="page">
+        <header class="header"><h2>About</h2></header>
+        <div style="padding: 30px; line-height: 1.7; color: #cbd5e1;">
+            <p><strong>Eagle Flip: Ultimate Arcade</strong> is a showcase of modern web animation technologies.</p>
+            
+            <div style="background: rgba(255,255,255,0.05); padding: 20px; border-radius: 12px; margin: 20px 0;">
+                <h3 style="margin-top:0; color: var(--accent-secondary);">Educational Tech</h3>
+                <ul style="padding-left: 20px; color: var(--text-muted);">
+                    <li>CSS 3D Transforms</li>
+                    <li>Physics-bezier Easing</li>
+                    <li>State Management</li>
+                    <li>Particle Systems</li>
+                </ul>
+            </div>
+
+            <div style="text-align: center; margin-top: 50px; opacity: 0.6; font-size: 0.8rem;">
+                © 2026 Jomel Anthony.<br>
+                Enhanced Educational Demonstration.
+            </div>
+        </div>
+    </div>
+
+    <nav class="bottom-nav">
+        <div class="nav-item active" onclick="navigateTo('page-home', this)">
+            <span class="nav-icon">🎮</span> Home
+        </div>
+        <div class="nav-item" onclick="navigateTo('page-selector', this)">
+            <span class="nav-icon">⚙️</span> Games
+        </div>
+        <div class="nav-item" onclick="navigateTo('page-history', this)">
+            <span class="nav-icon">📊</span> Log
+        </div>
+        <div class="nav-item" onclick="navigateTo('page-rewards', this)">
+            <span class="nav-icon">🏆</span> Awards
+        </div>
+        <div class="nav-item" onclick="navigateTo('page-about', this)">
+            <span class="nav-icon">ℹ️</span> Info
+        </div>
+    </nav>
+
+    <div class="modal-overlay" id="reward-modal" onclick="closeModal()">
+        <div class="reward-card">
+            <div class="reward-icon" id="modal-icon">🧸</div>
+            <div class="reward-title" id="modal-title" style="color: var(--accent-gold); font-size: 1.8rem; margin: 10px 0; font-weight: 800;">New Item!</div>
+            <div class="reward-desc" id="modal-desc" style="color: var(--text-muted); margin-bottom: 25px;">You unlocked a virtual item.</div>
+            <button class="start-btn" style="margin-top: 0; opacity: 1; padding: 12px 35px; font-size: 0.9rem; animation: none;" onclick="closeModal()">COLLECT</button>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    /**
+     * EAGLE FLIP ULTIMATE
+     * Enhanced Logic & Physics Engine
+     */
+
+    // --- STATE MANAGEMENT ---
+    const state = {
+        score: 0,
+        streak: 0,
+        gameMode: 'coin', // coin, dice, card, rps
+        selectedPrediction: null,
+        isAnimating: false,
+        coinRotation: 0,
+        diceRotation: { x: 0, y: 0 },
+        cardRotation: 0,
+        history: [],
+        unlockedRewards: []
+    };
+
+    const rewardsDB = [
+        { id: 'streak3', name: 'Hot Streak', icon: '🔥', desc: 'Won 3 times in a row!', req: 3 },
+        { id: 'streak5', name: 'High Roller', icon: '🎩', desc: 'Won 5 times in a row!', req: 5 },
+        { id: 'streak10', name: 'Eagle Eye', icon: '🦅', desc: 'Legendary 10 win streak!', req: 10 },
+        { id: 'pts50', name: 'Apprentice', icon: '🥉', desc: 'Accumulated 50 points', points: 50 },
+        { id: 'pts100', name: 'Master', icon: '👑', desc: 'Accumulated 100 points', points: 100 },
+        { id: 'rpsMaster', name: 'RPS Champ', icon: '✂️', desc: 'Won Rock Paper Scissors', special: 'rps_win' }
+    ];
+
+    // --- DOM CACHE ---
+    const els = {
+        pages: document.querySelectorAll('.page'),
+        navItems: document.querySelectorAll('.nav-item'),
+        score: document.getElementById('scoreDisplay'),
+        scoreContainer: document.getElementById('score-container'),
+        streakBadge: document.getElementById('streak-badge'),
+        streakVal: document.getElementById('streak-val'),
+        spinBtn: document.getElementById('btn-spin'),
+        history: document.getElementById('history-container'),
+        rewardsGrid: document.getElementById('rewards-grid'),
+        
+        // Objects
+        coin: document.getElementById('coin'),
+        dice: document.getElementById('dice'),
+        card: document.getElementById('card'),
+        rpsIcon: document.getElementById('rps-icon')
+    };
+
+    // --- NAVIGATION ---
+    function navigateTo(pageId, navEl) {
+        els.pages.forEach(p => p.classList.remove('active'));
+        document.getElementById(pageId).classList.add('active');
+        
+        if(navEl) {
+            els.navItems.forEach(n => n.classList.remove('active'));
+            navEl.classList.add('active');
+        }
+
+        if(pageId === 'page-rewards') renderRewards();
+        
+        // Haptic feedback
+        if(navigator.vibrate) navigator.vibrate(5);
+    }
+
+    // --- GAME SWITCHER ---
+    function switchGameMode(mode, btnEl) {
+        state.gameMode = mode;
+        state.selectedPrediction = null;
+        updateControls();
+
+        document.querySelectorAll('.selector-card').forEach(c => c.classList.remove('active'));
+        btnEl.classList.add('active');
+
+        // Toggle Objects
+        document.getElementById('obj-coin').className = mode === 'coin' ? 'coin-wrapper active' : 'coin-wrapper';
+        document.getElementById('obj-dice').className = mode === 'dice' ? 'dice-wrapper active' : 'dice-wrapper';
+        document.getElementById('obj-card').className = mode === 'card' ? 'card-wrapper active' : 'card-wrapper';
+        document.getElementById('obj-rps').className = mode === 'rps' ? 'rps-wrapper active' : 'rps-wrapper';
+
+        // Update Labels
+        const labels = {
+            coin: 'Predict Head or Tail',
+            dice: 'Predict Odd or Even',
+            card: 'Red or Black?',
+            rps: 'Rock, Paper, or Scissors?'
+        };
+        document.getElementById('pred-label').textContent = labels[mode];
+        
+        // Return home
+        setTimeout(() => navigateTo('page-home', els.navItems[0]), 250);
+    }
+
+    function updateControls() {
+        ['coin', 'dice', 'card', 'rps'].forEach(m => {
+            document.getElementById(`controls-${m}`).classList.add('hidden');
+        });
+        document.getElementById(`controls-${state.gameMode}`).classList.remove('hidden');
+        
+        document.querySelectorAll('.action-btn').forEach(b => b.classList.remove('selected'));
+        els.spinBtn.disabled = true;
+        els.spinBtn.textContent = "PLAY";
+        els.spinBtn.style.background = ""; // Reset gradient
+    }
+
+    function selectPrediction(val, btn) {
+        if(state.isAnimating) return;
+        state.selectedPrediction = val;
+        
+        document.querySelectorAll('.action-btn').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        
+        els.spinBtn.disabled = false;
+        els.spinBtn.textContent = "START GAME";
+        
+        if(navigator.vibrate) navigator.vibrate(10);
+    }
+
+    // --- GAME LOOP ---
+    function playGame() {
+        if (state.isAnimating) return;
+        state.isAnimating = true;
+        els.spinBtn.disabled = true;
+
+        // Determine Game Logic
+        if (state.gameMode === 'coin') {
+            const isHead = Math.random() < 0.5;
+            const result = isHead ? 'head' : 'tail';
+            const isWin = state.selectedPrediction === result;
+            animateCoin(isHead, result, isWin);
+        } 
+        else if (state.gameMode === 'dice') {
+            const roll = Math.floor(Math.random() * 6) + 1;
+            const parity = roll % 2 === 0 ? 'even' : 'odd';
+            const isWin = state.selectedPrediction === parity;
+            animateDice(roll, isWin);
+        }
+        else if (state.gameMode === 'card') {
+            const suits = ['♥','♦','♠','♣'];
+            const suit = suits[Math.floor(Math.random() * 4)];
+            const color = (suit === '♥' || suit === '♦') ? 'red' : 'black';
+            const isWin = state.selectedPrediction === color;
+            animateCard(suit, color, isWin);
+        }
+        else if (state.gameMode === 'rps') {
+            const opts = ['rock', 'paper', 'scissors'];
+            const ai = opts[Math.floor(Math.random() * 3)];
+            
+            // Win logic
+            let isWin = false;
+            let draw = false;
+            const p = state.selectedPrediction;
+            
+            if (p === ai) draw = true;
+            else if (
+                (p === 'rock' && ai === 'scissors') ||
+                (p === 'paper' && ai === 'rock') ||
+                (p === 'scissors' && ai === 'paper')
+            ) isWin = true;
+
+            animateRPS(ai, isWin, draw);
+        }
+    }
+
+    // --- ANIMATIONS ---
+    function animateCoin(isHead, resultStr, isWin) {
+        const currentMod = state.coinRotation % 360;
+        let targetAdd = isHead ? (360 - currentMod) : (180 - currentMod + 360) % 360;
+        
+        const spins = 1800 + (Math.floor(Math.random() * 3) * 360); 
+        state.coinRotation += (spins + targetAdd);
+
+        els.coin.style.transition = 'transform 2.5s cubic-bezier(0.15, 0.85, 0.35, 1.15)';
+        els.coin.style.transform = `rotateY(${state.coinRotation}deg) rotateZ(${Math.random()*10 - 5}deg)`; // Slight Z wobble
+
+        finishTurn(resultStr, isWin, 2500);
+    }
+
+    function animateDice(number, isWin) {
+        const faceRotations = {
+            1: {x: 0, y: 0}, 2: {x: 0, y: 180}, 3: {x: 0, y: -90},
+            4: {x: 0, y: 90}, 5: {x: -90, y: 0}, 6: {x: 90, y: 0}
+        };
+        const target = faceRotations[number];
+        state.diceRotation.x += (720 + target.x);
+        state.diceRotation.y += (720 + target.y);
+
+        els.dice.style.transition = 'transform 2s cubic-bezier(0.15, 0.85, 0.35, 1.15)';
+        els.dice.style.transform = `rotateX(${state.diceRotation.x}deg) rotateY(${state.diceRotation.y}deg)`;
+
+        finishTurn(number, isWin, 2000);
+    }
+
+    function animateCard(suit, color, isWin) {
+        // Prepare face
+        const val = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'][Math.floor(Math.random()*13)];
+        const faceEl = document.getElementById('card-face-val');
+        faceEl.style.color = color === 'red' ? '#ef4444' : '#1e293b';
+        faceEl.innerHTML = `
+            <div style="font-size: 1.5rem; align-self: flex-start; margin-left: 10px;">${val}</div>
+            <div style="font-size: 4rem;">${suit}</div>
+            <div style="font-size: 1.5rem; align-self: flex-end; margin-right: 10px; transform: rotate(180deg);">${val}</div>
+        `;
+
+        state.cardRotation += 1800 + 180; // 5 spins + flip to front
+        els.card.style.transition = 'transform 2.5s cubic-bezier(0.15, 0.85, 0.35, 1.15)';
+        els.card.style.transform = `rotateY(${state.cardRotation}deg)`;
+
+        // Reset rotation internal visual after spin (hack for infinite flips)
+        setTimeout(() => {
+           // Keep it flipped or reset depending on next turn, handled by cumulative var
+        }, 2500);
+
+        finishTurn(color.toUpperCase(), isWin, 2500);
+    }
+
+    function animateRPS(aiChoice, isWin, isDraw) {
+        const iconMap = { rock: '✊', paper: '✋', scissors: '✌️' };
+        const el = els.rpsIcon;
+        
+        // Shake animation
+        let shakes = 0;
+        const interval = setInterval(() => {
+            el.style.transform = `scale(1.2) rotate(${shakes % 2 === 0 ? -20 : 20}deg)`;
+            shakes++;
+        }, 150);
+
+        setTimeout(() => {
+            clearInterval(interval);
+            el.textContent = iconMap[aiChoice];
+            el.style.transform = 'scale(1.5) rotate(0deg)';
+            
+            // Logic patch for draw
+            const resultState = isDraw ? 'DRAW' : isWin;
+            finishTurn(iconMap[aiChoice], resultState, 500);
+        }, 1500);
+    }
+
+    // --- RESOLUTION ---
+    function finishTurn(resultDisplay, isWin, delay) {
+        setTimeout(() => {
+            state.isAnimating = false;
+            
+            const isDraw = isWin === 'DRAW';
+            let winState = isWin === true;
+
+            if(isDraw) {
+                els.spinBtn.textContent = "DRAW! TRY AGAIN";
+                els.spinBtn.style.background = "#64748b";
+            } else if(winState) {
+                handleWin();
+            } else {
+                handleLoss();
+            }
+            
+            els.spinBtn.disabled = false;
+            if(!isDraw) addToHistory(resultDisplay, winState);
+
+        }, delay);
+    }
+
+    function handleWin() {
+        state.score += 10;
+        state.streak++;
+        
+        // Effects
+        els.score.innerText = state.score;
+        els.scoreContainer.classList.add('pulse');
+        setTimeout(() => els.scoreContainer.classList.remove('pulse'), 500);
+        
+        updateStreakUI();
+        createParticles();
+        
+        els.spinBtn.textContent = "VICTORY! AGAIN?";
+        els.spinBtn.style.background = "linear-gradient(to right, #22c55e, #16a34a)";
+        
+        checkAchievements();
+        if(navigator.vibrate) navigator.vibrate([50, 100, 50]);
+    }
+
+    function handleLoss() {
+        state.streak = 0;
+        updateStreakUI();
+        
+        // Screen Shake
+        document.body.classList.add('shake-screen');
+        setTimeout(() => document.body.classList.remove('shake-screen'), 400);
+        
+        els.spinBtn.textContent = "TRY AGAIN";
+        els.spinBtn.style.background = "linear-gradient(to right, #ef4444, #dc2626)";
+        
+        if(navigator.vibrate) navigator.vibrate(200);
+    }
+
+    function updateStreakUI() {
+        els.streakVal.innerText = state.streak;
+        if(state.streak > 1) els.streakBadge.classList.add('show');
+        else els.streakBadge.classList.remove('show');
+    }
+
+    function addToHistory(result, isWin) {
+        const item = document.createElement('div');
+        item.className = `history-item ${isWin ? 'history-win' : 'history-loss'}`;
+        
+        // Format Result
+        if(typeof result === 'number') item.textContent = result;
+        else if(result === 'head') item.textContent = '🦅';
+        else if(result === 'tail') item.textContent = '🐺';
+        else if(result === 'RED') item.textContent = '♥';
+        else if(result === 'BLACK') item.textContent = '♠';
+        else item.textContent = result; // RPS Icons
+        
+        els.history.prepend(item);
+        if(els.history.children.length > 15) els.history.lastChild.remove();
+    }
+
+    // --- REWARDS SYSTEM ---
+    function checkAchievements() {
+        rewardsDB.forEach(reward => {
+            if(state.unlockedRewards.includes(reward.id)) return;
+
+            let unlocked = false;
+            if(reward.req && state.streak >= reward.req) unlocked = true;
+            if(reward.points && state.score >= reward.points) unlocked = true;
+            if(reward.special === 'rps_win' && state.gameMode === 'rps') unlocked = true;
+
+            if(unlocked) {
+                state.unlockedRewards.push(reward.id);
+                showModal(reward);
+            }
+        });
+    }
+
+    function showModal(reward) {
+        document.getElementById('modal-icon').textContent = reward.icon;
+        document.getElementById('modal-title').textContent = reward.name;
+        document.getElementById('modal-desc').textContent = reward.desc;
+        document.getElementById('reward-modal').classList.add('active');
+        createParticles(50); // Massive burst
+    }
+
+    function closeModal() {
+        document.getElementById('reward-modal').classList.remove('active');
+    }
+
+    function renderRewards() {
+        els.rewardsGrid.innerHTML = '';
+        rewardsDB.forEach(r => {
+            const isUnlocked = state.unlockedRewards.includes(r.id);
+            const card = document.createElement('div');
+            // Styled via CSS classes mainly, inline for dynamic states
+            card.style.background = isUnlocked ? 'linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(6, 182, 212, 0.1))' : 'rgba(255,255,255,0.03)';
+            card.style.border = isUnlocked ? '1px solid var(--success)' : '1px dashed #475569';
+            card.style.padding = '15px';
+            card.style.borderRadius = '16px';
+            card.style.textAlign = 'center';
+            card.style.opacity = isUnlocked ? '1' : '0.5';
+            
+            card.innerHTML = `
+                <div style="font-size: 2.5rem; filter: ${isUnlocked ? 'drop-shadow(0 0 10px rgba(255,255,255,0.3))' : 'grayscale(100%)'}">${r.icon}</div>
+                <div style="font-weight:bold; margin-top:8px; font-size:0.9rem; color: ${isUnlocked ? '#fff' : '#94a3b8'}">${r.name}</div>
+                <div style="font-size:0.7rem; color: ${isUnlocked ? 'var(--accent-secondary)' : '#64748b'}; margin-top: 4px; font-weight: 700;">${isUnlocked ? 'UNLOCKED' : 'LOCKED'}</div>
+            `;
+            els.rewardsGrid.appendChild(card);
+        });
+    }
+
+    // --- VISUAL FX: PARTICLES ---
+    function createParticles(amount = 20) {
+        const colors = ['#fbbf24', '#8b5cf6', '#06b6d4', '#22c55e', '#f43f5e'];
+        for(let i=0; i<amount; i++) {
+            const p = document.createElement('div');
+            p.className = 'particle';
+            const size = Math.random() * 8 + 4;
+            p.style.width = size + 'px';
+            p.style.height = size + 'px';
+            p.style.background = colors[Math.floor(Math.random()*colors.length)];
+            
+            // Random start pos near center
+            const startX = window.innerWidth / 2;
+            const startY = window.innerHeight / 2;
+            p.style.left = startX + 'px';
+            p.style.top = startY + 'px';
+            
+            document.body.appendChild(p);
+
+            // Animate
+            const angle = Math.random() * Math.PI * 2;
+            const velocity = Math.random() * 150 + 50;
+            const tx = Math.cos(angle) * velocity;
+            const ty = Math.sin(angle) * velocity;
+
+            p.animate([
+                { transform: 'translate(0, 0) scale(1)', opacity: 1 },
+                { transform: `translate(${tx}px, ${ty}px) scale(0)`, opacity: 0 }
+            ], {
+                duration: 800 + Math.random() * 400,
+                easing: 'cubic-bezier(0, .9, .57, 1)',
+                fill: 'forwards'
+            }).onfinish = () => p.remove();
+        }
+    }
+
+    // Init
+    updateControls();
+</script>
+</body>
+</html>
